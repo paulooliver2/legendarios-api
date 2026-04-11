@@ -1,0 +1,311 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum JourneyStatus {
+  PRE_LEGENDARIO
+  LEGENDARIO
+}
+
+enum SystemRole {
+  ADMIN
+  OPERATOR
+  TEAM_LEADER
+  VIEWER
+}
+
+enum EventType {
+  TOP
+  RPM
+  OUTRO
+}
+
+enum EventMembershipStatus {
+  PRE_INSCRITO
+  INSCRITO
+  EM_ANALISE
+  APROVADO
+  RECUSADO
+  CANCELADO
+}
+
+enum EventRole {
+  PARTICIPANTE
+  SERVO
+  LIDER
+  COORDENADOR
+}
+
+enum TeamRole {
+  MEMBRO
+  LIDER
+}
+
+// ─── Person ──────────────────────────────────────────────────────────────────
+// Entidade central do domínio. Representa o ser humano dentro do movimento.
+// Independente de ter ou não conta de acesso ao sistema.
+
+model Person {
+  id               String        @id @default(uuid())
+  fullName         String
+  email            String?       @unique
+  phone            String?
+  birthDate        DateTime?     @db.Date
+  journeyStatus    JourneyStatus @default(PRE_LEGENDARIO)
+  journeyChangedAt DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  userAccount       UserAccount?
+  eventMemberships  EventMembership[]
+  teamMemberships   TeamMembership[]
+  feedbacksReceived Feedback[]         @relation("FeedbackReceiver")
+  feedbacksGiven    Feedback[]         @relation("FeedbackGiver")
+  verifications     Verification[]
+  manadaMembers     ManadaMember[]
+  auditLogs         AuditLog[]
+
+  @@index([journeyStatus])
+  @@map("persons")
+}
+
+// ─── UserAccount ─────────────────────────────────────────────────────────────
+// Credencial de acesso ao sistema. Separada da identidade da Person.
+// Uma Person pode existir sem UserAccount.
+
+model UserAccount {
+  id           String     @id @default(uuid())
+  personId     String     @unique
+  username     String     @unique
+  passwordHash String
+  systemRole   SystemRole @default(VIEWER)
+  isActive     Boolean    @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  person        Person         @relation(fields: [personId], references: [id])
+  refreshTokens RefreshToken[]
+
+  @@index([username])
+  @@map("user_accounts")
+}
+
+// ─── RefreshToken ────────────────────────────────────────────────────────────
+// Armazena o hash do refresh token para rotação e revogação.
+// Nunca armazena o token raw.
+
+model RefreshToken {
+  id            String   @id @default(uuid())
+  userAccountId String
+  tokenHash     String   @unique
+  expiresAt     DateTime
+  isRevoked     Boolean  @default(false)
+  revokedAt     DateTime?
+  createdAt     DateTime @default(now())
+
+  userAccount UserAccount @relation(fields: [userAccountId], references: [id])
+
+  @@index([userAccountId])
+  @@map("refresh_tokens")
+}
+
+// ─── Manada ──────────────────────────────────────────────────────────────────
+// Agrupamento de pessoas dentro do movimento.
+
+model Manada {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members ManadaMember[]
+
+  @@map("manadas")
+}
+
+model ManadaMember {
+  id       String   @id @default(uuid())
+  personId String
+  manadaId String
+  joinedAt DateTime @default(now())
+
+  person Person @relation(fields: [personId], references: [id])
+  manada Manada @relation(fields: [manadaId], references: [id])
+
+  @@unique([personId, manadaId])
+  @@index([manadaId])
+  @@map("manada_members")
+}
+
+// ─── Event ───────────────────────────────────────────────────────────────────
+// Evento do movimento (TOP, RPM, etc).
+
+model Event {
+  id          String    @id @default(uuid())
+  name        String
+  type        EventType
+  description String?
+  startDate   DateTime
+  endDate     DateTime?
+  location    String?
+  isPublished Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  teams       EventTeam[]
+  memberships EventMembership[]
+
+  @@index([type])
+  @@index([startDate])
+  @@map("events")
+}
+
+// ─── EventTeam ───────────────────────────────────────────────────────────────
+// Time/equipe dentro de um evento específico.
+// Não existe fora do contexto de um evento.
+
+model EventTeam {
+  id          String   @id @default(uuid())
+  eventId     String
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  event           Event            @relation(fields: [eventId], references: [id])
+  teamMemberships TeamMembership[]
+
+  @@unique([eventId, name])
+  @@index([eventId])
+  @@map("event_teams")
+}
+
+// ─── EventMembership ─────────────────────────────────────────────────────────
+// Vínculo entre Person e Event.
+// Contém o status do fluxo de inscrição e o papel no evento.
+
+model EventMembership {
+  id        String                @id @default(uuid())
+  personId  String
+  eventId   String
+  status    EventMembershipStatus @default(PRE_INSCRITO)
+  role      EventRole             @default(PARTICIPANTE)
+  notes     String?
+  createdAt DateTime              @default(now())
+  updatedAt DateTime              @updatedAt
+
+  person        Person                          @relation(fields: [personId], references: [id])
+  event         Event                           @relation(fields: [eventId], references: [id])
+  statusHistory EventMembershipStatusHistory[]
+
+  @@unique([personId, eventId])
+  @@index([eventId])
+  @@index([status])
+  @@map("event_memberships")
+}
+
+// ─── EventMembershipStatusHistory ────────────────────────────────────────────
+// Log imutável das transições de status de uma EventMembership.
+// Registra quem aprovou/recusou, quando e por quê.
+
+model EventMembershipStatusHistory {
+  id                 String                 @id @default(uuid())
+  membershipId       String
+  previousStatus     EventMembershipStatus?
+  newStatus          EventMembershipStatus
+  changedByAccountId String?
+  reason             String?
+  changedAt          DateTime               @default(now())
+
+  membership EventMembership @relation(fields: [membershipId], references: [id])
+
+  @@index([membershipId])
+  @@map("event_membership_status_history")
+}
+
+// ─── TeamMembership ──────────────────────────────────────────────────────────
+// Vínculo entre Person e um EventTeam específico.
+// Responde: "dentro desse evento, essa pessoa serve nesse time".
+
+model TeamMembership {
+  id          String   @id @default(uuid())
+  personId    String
+  eventTeamId String
+  teamRole    TeamRole @default(MEMBRO)
+  assignedAt  DateTime @default(now())
+
+  person    Person    @relation(fields: [personId], references: [id])
+  eventTeam EventTeam @relation(fields: [eventTeamId], references: [id])
+
+  @@unique([personId, eventTeamId])
+  @@index([eventTeamId])
+  @@map("team_memberships")
+}
+
+// ─── Feedback ────────────────────────────────────────────────────────────────
+// Comentário ou avaliação sobre uma Person.
+// Pode ser anônimo e opcionalmente vinculado a um evento.
+
+model Feedback {
+  id          String   @id @default(uuid())
+  receiverId  String
+  giverId     String?
+  eventId     String?
+  content     String
+  isAnonymous Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  receiver Person  @relation("FeedbackReceiver", fields: [receiverId], references: [id])
+  giver    Person? @relation("FeedbackGiver", fields: [giverId], references: [id])
+
+  @@index([receiverId])
+  @@map("feedbacks")
+}
+
+// ─── Verification ────────────────────────────────────────────────────────────
+// Registro formal de uma verificação sobre a Person.
+// Ex: confirmação de subida, validação de comprometimento.
+
+model Verification {
+  id           String   @id @default(uuid())
+  personId     String
+  type         String
+  verifiedById String?
+  notes        String?
+  verifiedAt   DateTime @default(now())
+
+  person Person @relation(fields: [personId], references: [id])
+
+  @@index([personId])
+  @@map("verifications")
+}
+
+// ─── AuditLog ────────────────────────────────────────────────────────────────
+// Registro cross-cutting de ações no sistema.
+// Quem fez o quê, quando, em qual entidade.
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  actorId   String?
+  action    String
+  entity    String
+  entityId  String?
+  payload   Json?
+  createdAt DateTime @default(now())
+
+  actor Person? @relation(fields: [actorId], references: [id])
+
+  @@index([entity, entityId])
+  @@index([actorId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
