@@ -11,7 +11,7 @@ import { eventsRouter } from './modules/events/events.router'
 import { eventTeamsRouter } from './modules/event-teams/event-teams.router'
 import { membershipsRouter } from './modules/memberships/memberships.router'
 import { teamMembershipsRouter } from './modules/team-memberships/team-memberships.router'
-import { manadasRouter } from './modules/manadas/manadas.router'
+import { pistasRouter } from './modules/manadas/manadas.router'
 import { feedbacksRouter } from './modules/feedbacks/feedbacks.router'
 import { verificationsRouter } from './modules/verifications/verifications.router'
 
@@ -58,11 +58,11 @@ app.use(requestLogger)
 // PATCH  /memberships/:id/refuse         JWT             TEAM_LEADER
 // GET    /memberships/:id/history        JWT             qualquer
 // POST   /team-memberships               JWT             TEAM_LEADER
-// POST   /manadas                        JWT             OPERATOR
-// GET    /manadas                        JWT             qualquer
-// GET    /manadas/:id                    JWT             qualquer
-// POST   /manadas/:id/members            JWT             OPERATOR
-// GET    /manadas/:id/members            JWT             qualquer
+// POST   /pistas                         JWT             ADMIN
+// GET    /pistas                         JWT             qualquer
+// GET    /pistas/:id                     JWT             qualquer
+// POST   /pistas/:id/members             JWT             ADMIN, OPERATOR, PISTA_LEADER
+// GET    /pistas/:id/members             JWT             qualquer
 // POST   /feedbacks                      JWT             qualquer
 // POST   /verifications                  JWT             OPERATOR
 //
@@ -74,7 +74,7 @@ app.use('/events', eventsRouter)
 app.use('/events', eventTeamsRouter)        // /events/:eventId/teams
 app.use('/memberships', membershipsRouter)
 app.use('/team-memberships', teamMembershipsRouter)
-app.use('/manadas', manadasRouter)
+app.use('/pistas', pistasRouter)
 app.use('/feedbacks', feedbacksRouter)
 app.use('/verifications', verificationsRouter)
 

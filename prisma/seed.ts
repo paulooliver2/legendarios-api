@@ -1,4 +1,4 @@
-import { PrismaClient, SystemRole, JourneyStatus, EventType, EventRole } from '@prisma/client'
+import { PrismaClient, SystemRole, JourneyStatus, EventType, EventRole, EventStatus } from '@prisma/client'
 import { hashSync } from 'bcryptjs'
 
 const prisma = new PrismaClient()
@@ -38,46 +38,47 @@ async function main() {
   })
 
   const preLegendario = await prisma.person.upsert({
-    where: { email: 'maria@legendarios.com' },
+    where: { email: 'mario@legendarios.com' },
     update: {},
     create: {
-      fullName: 'Maria Pré-Legendária',
-      email: 'maria@legendarios.com',
+      fullName: 'Mario Pré-Legendário',
+      email: 'mario@legendarios.com',
       journeyStatus: JourneyStatus.PRE_LEGENDARIO,
     },
   })
   console.log(`Pessoas: ${legendario.fullName}, ${preLegendario.fullName}`)
 
-  // ── Manada ───────────────────────────────────────────────────────────────────
-  const manada = await prisma.manada.upsert({
-    where: { id: 'seed-manada-01' },
+  // ── Pista ────────────────────────────────────────────────────────────────────
+  const pista = await prisma.pista.upsert({
+    where: { name: 'Pista dos Guerreiros' },
     update: {},
     create: {
-      id: 'seed-manada-01',
-      name: 'Manada dos Guerreiros',
-      description: 'Manada de exemplo para desenvolvimento',
+      name: 'Pista dos Guerreiros',
+      description: 'Pista de exemplo para desenvolvimento',
     },
   })
 
-  await prisma.manadaMember.upsert({
-    where: { personId_manadaId: { personId: legendario.id, manadaId: manada.id } },
+  await prisma.pistaMember.upsert({
+    where: { personId_pistaId: { personId: legendario.id, pistaId: pista.id } },
     update: {},
-    create: { personId: legendario.id, manadaId: manada.id },
+    create: { personId: legendario.id, pistaId: pista.id },
   })
-  console.log(`Manada: ${manada.name}`)
+  console.log(`Pista: ${pista.name}`)
 
   // ── Event ────────────────────────────────────────────────────────────────────
   const event = await prisma.event.upsert({
-    where: { id: 'seed-event-01' },
+    where: { id: '00000000-0000-0000-0000-000000000001' },
     update: {},
     create: {
-      id: 'seed-event-01',
+      id: '00000000-0000-0000-0000-000000000001',
       name: 'TOP Legendários 2026',
       type: EventType.TOP,
       description: 'Evento TOP de exemplo para desenvolvimento',
       startDate: new Date('2026-06-01'),
       endDate: new Date('2026-06-03'),
-      isPublished: true,
+      status: EventStatus.INSCRICOES_ABERTAS,
+      limiteServos: 30,
+      limiteParticipantes: 50,
     },
   })
 

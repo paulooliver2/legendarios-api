@@ -6,7 +6,7 @@ import {
   listEventsHandler,
   getEventHandler,
   updateEventHandler,
-  publishEventHandler,
+  updateEventStatusHandler,
   deleteEventHandler,
 } from './events.controller'
 
@@ -16,5 +16,5 @@ eventsRouter.post('/', authenticate, requireRole(['ADMIN', 'OPERATOR']), createE
 eventsRouter.get('/', authenticate, listEventsHandler)
 eventsRouter.get('/:id', authenticate, getEventHandler)
 eventsRouter.patch('/:id', authenticate, requireRole(['ADMIN', 'OPERATOR']), updateEventHandler)
-eventsRouter.patch('/:id/publish', authenticate, requireRole(['ADMIN', 'OPERATOR']), publishEventHandler)
+eventsRouter.patch('/:id/status', authenticate, requireRole(['ADMIN', 'OPERATOR']), updateEventStatusHandler)
 eventsRouter.delete('/:id', authenticate, requireRole(['ADMIN']), deleteEventHandler)

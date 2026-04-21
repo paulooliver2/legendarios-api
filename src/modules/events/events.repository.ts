@@ -1,4 +1,4 @@
-import { EventType } from '@prisma/client'
+import { EventType, EventStatus } from '@prisma/client'
 import { prisma } from '../../prisma/client'
 import { CreateEventInput, UpdateEventInput } from './events.schemas'
 
@@ -15,11 +15,11 @@ export async function createEvent(data: CreateEventInput) {
 export async function findEvents(
   skip: number,
   take: number,
-  filters: { type?: EventType; isPublished?: boolean },
+  filters: { type?: EventType; status?: EventStatus },
 ) {
   const where = {
     ...(filters.type ? { type: filters.type } : {}),
-    ...(filters.isPublished !== undefined ? { isPublished: filters.isPublished } : {}),
+    ...(filters.status ? { status: filters.status } : {}),
   }
 
   const [data, total] = await prisma.$transaction([
@@ -30,10 +30,26 @@ export async function findEvents(
 }
 
 export async function findEventById(id: string) {
-  return prisma.event.findUnique({
+  const event = await prisma.event.findUnique({
     where: { id },
-    include: { teams: true },
+    include: {
+      teams: true,
+      pista: { select: { id: true, name: true } },
+      _count: false,
+    },
   })
+  if (!event) return null
+
+  const [inscritosServos, inscritosParticipantes] = await prisma.$transaction([
+    prisma.eventMembership.count({
+      where: { eventId: id, role: 'SERVO', status: { in: ['INSCRITO', 'APROVADO'] } },
+    }),
+    prisma.eventMembership.count({
+      where: { eventId: id, role: 'PARTICIPANTE', status: { in: ['INSCRITO', 'APROVADO'] } },
+    }),
+  ])
+
+  return { ...event, inscritosServos, inscritosParticipantes }
 }
 
 export async function updateEvent(id: string, data: UpdateEventInput) {
@@ -47,8 +63,8 @@ export async function updateEvent(id: string, data: UpdateEventInput) {
   })
 }
 
-export async function togglePublish(id: string, isPublished: boolean) {
-  return prisma.event.update({ where: { id }, data: { isPublished } })
+export async function updateEventStatus(id: string, status: EventStatus) {
+  return prisma.event.update({ where: { id }, data: { status } })
 }
 
 export async function deleteEvent(id: string) {

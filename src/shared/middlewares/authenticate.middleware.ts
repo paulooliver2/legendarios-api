@@ -8,6 +8,7 @@ export interface JwtPayload {
   personId: string
   systemRole: string
   journeyStatus: string
+  pistaId?: string  // preenchido para PISTA_LEADER
 }
 
 declare global {

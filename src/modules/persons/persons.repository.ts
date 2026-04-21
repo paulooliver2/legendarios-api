@@ -30,7 +30,7 @@ export async function findPersonById(id: string) {
   return prisma.person.findUnique({
     where: { id },
     include: {
-      manadaMembers: { include: { manada: true } },
+      pistaMembers: { include: { pista: true } },
     },
   })
 }

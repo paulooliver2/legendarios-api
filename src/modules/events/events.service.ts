@@ -1,4 +1,4 @@
-import { EventType } from '@prisma/client'
+import { EventType, EventStatus } from '@prisma/client'
 import { NotFoundError } from '../../shared/errors/not-found.error'
 import { parsePagination, paginatedResponse } from '../../shared/utils/pagination.util'
 import {
@@ -6,8 +6,8 @@ import {
   deleteEvent,
   findEventById,
   findEvents,
-  togglePublish,
   updateEvent,
+  updateEventStatus,
 } from './events.repository'
 import { CreateEventInput, UpdateEventInput } from './events.schemas'
 
@@ -19,13 +19,12 @@ export async function list(query: {
   page?: number
   limit?: number
   type?: string
-  published?: string
+  status?: string
 }) {
   const { page, limit, skip, take } = parsePagination(query)
   const filters = {
     type: query.type as EventType | undefined,
-    isPublished:
-      query.published === 'true' ? true : query.published === 'false' ? false : undefined,
+    status: query.status as EventStatus | undefined,
   }
   const { data, total } = await findEvents(skip, take, filters)
   return paginatedResponse(data, total, page, limit)
@@ -43,10 +42,10 @@ export async function update(id: string, input: UpdateEventInput) {
   return updateEvent(id, input)
 }
 
-export async function publish(id: string, isPublished: boolean) {
+export async function changeStatus(id: string, status: EventStatus) {
   const event = await findEventById(id)
   if (!event) throw new NotFoundError('Evento não encontrado.')
-  return togglePublish(id, isPublished)
+  return updateEventStatus(id, status)
 }
 
 export async function remove(id: string) {

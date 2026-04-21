@@ -18,7 +18,22 @@ enum SystemRole {
   ADMIN
   OPERATOR
   TEAM_LEADER
+  PISTA_LEADER
   VIEWER
+}
+
+enum PistaMemberRole {
+  MEMBRO
+  SUB_COORDENADOR
+  COORDENADOR
+  LIDER
+}
+
+enum EventStatus {
+  PLANEJAMENTO
+  INSCRICOES_ABERTAS
+  EM_ANDAMENTO
+  FINALIZADO
 }
 
 enum EventType {
@@ -60,8 +75,32 @@ model Person {
   birthDate        DateTime?     @db.Date
   journeyStatus    JourneyStatus @default(PRE_LEGENDARIO)
   journeyChangedAt DateTime?
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
+
+  // Identificação
+  numeroLegendario String?
+  cpf              String?  @unique
+
+  // Endereço
+  uf               String?
+  cidade           String?
+  cep              String?
+
+  // Flags
+  jaServiu         Boolean  @default(false)
+  certificado      Boolean  @default(false)
+  problemaDeSaude  Boolean  @default(false)
+
+  // Contexto eclesial / familiar
+  igreja           String?
+  nomeLider        String?
+  numeroLider      String?
+  nomeEsposa       String?
+  nomeMae          String?
+  numeroParente    String?
+  photoUrl         String?
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   userAccount       UserAccount?
   eventMemberships  EventMembership[]
@@ -69,7 +108,7 @@ model Person {
   feedbacksReceived Feedback[]         @relation("FeedbackReceiver")
   feedbacksGiven    Feedback[]         @relation("FeedbackGiver")
   verifications     Verification[]
-  manadaMembers     ManadaMember[]
+  pistaMembers      PistaMember[]
   auditLogs         AuditLog[]
 
   @@index([journeyStatus])
@@ -117,33 +156,60 @@ model RefreshToken {
   @@map("refresh_tokens")
 }
 
-// ─── Manada ──────────────────────────────────────────────────────────────────
+// ─── Pista ───────────────────────────────────────────────────────────────────
 // Agrupamento de pessoas dentro do movimento.
 
-model Manada {
+model Pista {
   id          String   @id @default(uuid())
   name        String   @unique
   description String?
+  logoUrl     String?
+  uf          String?
+  cidade      String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  members ManadaMember[]
+  members PistaMember[]
+  teams   PistaTeam[]
+  events  Event[]
 
-  @@map("manadas")
+  @@map("pistas")
 }
 
-model ManadaMember {
-  id       String   @id @default(uuid())
-  personId String
-  manadaId String
-  joinedAt DateTime @default(now())
+// ─── PistaTeam ────────────────────────────────────────────────────────────────
+// Equipe interna de uma pista. Coordenadores e sub-coordenadores pertencem a uma equipe.
 
-  person Person @relation(fields: [personId], references: [id])
-  manada Manada @relation(fields: [manadaId], references: [id])
+model PistaTeam {
+  id        String   @id @default(uuid())
+  pistaId   String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  @@unique([personId, manadaId])
-  @@index([manadaId])
-  @@map("manada_members")
+  pista   Pista         @relation(fields: [pistaId], references: [id])
+  members PistaMember[]
+
+  @@unique([pistaId, name])
+  @@index([pistaId])
+  @@map("pista_teams")
+}
+
+model PistaMember {
+  id          String          @id @default(uuid())
+  personId    String
+  pistaId     String
+  memberRole  PistaMemberRole @default(MEMBRO)
+  pistaTeamId String?
+  joinedAt    DateTime        @default(now())
+
+  person    Person     @relation(fields: [personId], references: [id])
+  pista     Pista      @relation(fields: [pistaId], references: [id])
+  pistaTeam PistaTeam? @relation(fields: [pistaTeamId], references: [id])
+
+  @@unique([personId, pistaId])
+  @@index([pistaId])
+  @@index([pistaTeamId])
+  @@map("pista_members")
 }
 
 // ─── Event ───────────────────────────────────────────────────────────────────
@@ -157,15 +223,23 @@ model Event {
   startDate   DateTime
   endDate     DateTime?
   location    String?
-  isPublished Boolean   @default(false)
+  uf          String?
+  cidade      String?
+  status              EventStatus @default(PLANEJAMENTO)
+  limiteServos        Int?
+  limiteParticipantes Int?
+  requirements        Json?
+  pistaId             String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
+  pista       Pista?          @relation(fields: [pistaId], references: [id])
   teams       EventTeam[]
   memberships EventMembership[]
 
   @@index([type])
   @@index([startDate])
+  @@index([pistaId])
   @@map("events")
 }
 
